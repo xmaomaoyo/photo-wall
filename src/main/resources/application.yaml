@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: photo-wall
+  profiles:
+    active: @spring.profiles.active@  # Maven构建时替换
+
+# Knife4j 配置
+knife4j:
+  enable: true           # 启用 Knife4j 增强模式
+  setting:
+    language: zh_cn       # 界面语言设置为中文
+
+# SpringDoc 配置
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+  # 扫描controller包
+  packages-to-scan: com.mimi.photowall.controller
