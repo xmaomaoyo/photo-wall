@@ -20,3 +20,20 @@ springdoc:
     operations-sorter: alpha
   # 扫描controller包
   packages-to-scan: com.mimi.photowall.controller
+
+# 验证码配置
+verification:
+  code:
+    length: 6  # 验证码长度
+    expire: 300  # 验证码有效期（秒）
+    max-attempts: 5  # 最大验证次数
+    send-interval: 60  # 发送间隔（秒）
+
+# 密码配置
+password:
+  random:
+    length: 12  # 随机密码长度
+    include-uppercase: true  # 包含大写字母
+    include-lowercase: true  # 包含小写字母
+    include-digits: true  # 包含数字
+    include-symbols: true  # 包含特殊符号

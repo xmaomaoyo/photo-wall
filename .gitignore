@@ -32,8 +32,14 @@ build/
 ### VS Code ###
 .vscode/
 
-### 敏感信息 ###
-.env
-*.env
-application-local.yaml
-bootstrap-local.yaml
+###Ai###
+CLAUDE.md
+/openspec/
+/.mcp.json
+
+### 本地配置文件 ###
+application-prod.yaml
+/.claude/
+/.codex/
+/logs/
+/src/main/resources/

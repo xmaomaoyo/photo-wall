@@ -1,19 +1,31 @@
-# 开发环境配置
+# 测试环境配置
 spring:
   # MySQL 配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://192.168.31.100:3306/photo_wall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-    username: ${MYSQL_USERNAME:admin}
+    url: jdbc:mysql://localhost:3306/photo-wall?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
     password: ${MYSQL_PASSWORD:}
+
+  # 邮件配置
+  mail:
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:465}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          ssl:
+            enable: true
 
   # Redis 配置
   data:
     redis:
-      host: ${REDIS_HOST:192.168.31.100}
+      host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
-      database: 0
+      database: 1
       timeout: 10000
       lettuce:
         pool:
@@ -36,3 +48,20 @@ mybatis-plus:
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:test-secret-key-for-test-env}
+  access-token-expiration: 1800  # 30分钟
+  refresh-token-expiration: 604800  # 7天
+
+# 阿里云短信配置
+aliyun:
+  sms:
+    access-key-id: ${ALIYUN_SMS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIYUN_SMS_ACCESS_KEY_SECRET:}
+    sign-name: ${ALIYUN_SMS_SIGN_NAME:}
+    template-code: ${ALIYUN_SMS_TEMPLATE_CODE:}
+    expire: 300  # 验证码有效期5分钟
+    max-attempts: 5  # 最大验证次数
+    daily-limit: 10  # 每日发送限制
