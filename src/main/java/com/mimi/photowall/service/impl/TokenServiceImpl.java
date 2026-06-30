@@ -9,88 +9,77 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Token服务实现类
- * 实现Token的生成、刷新、验证、吊销等操作
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TokenServiceImpl implements TokenService {
 
+    private static final String REFRESH_TOKEN_PREFIX = "auth:refresh:";
+    private static final String USER_TOKENS_PREFIX = "auth:user:tokens:";
+
     private final JwtUtil jwtUtil;
     private final JwtConfig jwtConfig;
     private final StringRedisTemplate redisTemplate;
 
-    /**
-     * Refresh Token存储Key前缀
-     */
-    private static final String REFRESH_TOKEN_PREFIX = "auth:refresh:";
-
-    /**
-     * 用户Token集合Key前缀
-     */
-    private static final String USER_TOKENS_PREFIX = "auth:user:tokens:";
-
     @Override
     public String[] generateTokenPair(Long userId, String username, List<String> roles,
                                       String deviceId, String ip, String userAgent) {
-        // 生成Access Token
         String accessToken = jwtUtil.generateAccessToken(userId, username, roles, deviceId);
-
-        // 生成Refresh Token
         String refreshToken = UUID.randomUUID().toString();
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        String ipValue = ip == null ? "" : ip;
+        String userAgentValue = userAgent == null ? "" : userAgent;
 
-        // 存储Refresh Token到Redis
-        String refreshKey = REFRESH_TOKEN_PREFIX + refreshToken;
+        String refreshKey = buildRefreshKeyByHash(refreshTokenHash);
         Map<String, String> tokenInfo = new HashMap<>();
         tokenInfo.put("userId", String.valueOf(userId));
         tokenInfo.put("username", username);
         tokenInfo.put("deviceId", deviceId);
-        tokenInfo.put("deviceName", UserAgentUtil.parseDeviceName(userAgent));
-        tokenInfo.put("ip", ip);
-        tokenInfo.put("userAgent", userAgent);
+        tokenInfo.put("deviceName", UserAgentUtil.parseDeviceName(userAgentValue));
+        tokenInfo.put("ip", ipValue);
+        tokenInfo.put("userAgent", userAgentValue);
         tokenInfo.put("createdAt", String.valueOf(System.currentTimeMillis()));
         redisTemplate.opsForHash().putAll(refreshKey, tokenInfo);
         redisTemplate.expire(refreshKey, jwtConfig.getRefreshTokenExpiration(), TimeUnit.SECONDS);
 
-        // 添加到用户的Token集合
         String userTokensKey = USER_TOKENS_PREFIX + userId;
-        redisTemplate.opsForSet().add(userTokensKey, refreshToken);
+        redisTemplate.opsForSet().add(userTokensKey, refreshTokenHash);
         redisTemplate.expire(userTokensKey, jwtConfig.getRefreshTokenExpiration(), TimeUnit.SECONDS);
 
         return new String[]{accessToken, refreshToken};
     }
 
     @Override
-    public String[] refreshTokenPair(String refreshToken) {
-        // 验证Refresh Token
+    public String[] refreshTokenPair(String refreshToken, String ip, String userAgent) {
         if (!validateRefreshToken(refreshToken)) {
             throw new RuntimeException("Refresh Token无效或已过期");
         }
 
-        // 获取用户信息
-        String refreshKey = REFRESH_TOKEN_PREFIX + refreshToken;
+        String refreshKey = buildRefreshKey(refreshToken);
         Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(refreshKey);
+        validateDeviceBinding(tokenInfo, userAgent);
 
         Long userId = Long.parseLong(tokenInfo.get("userId").toString());
         String username = tokenInfo.get("username").toString();
         String deviceId = tokenInfo.get("deviceId").toString();
-        String ip = tokenInfo.get("ip").toString();
-        String userAgent = tokenInfo.get("userAgent").toString();
 
-        // 获取用户角色
-        // 这里简化处理，实际应该从数据库或缓存获取
         List<String> roles = new ArrayList<>();
         roles.add("USER");
 
-        // 吊销旧的Refresh Token
         revokeRefreshToken(refreshToken);
-
-        // 生成新的Token对
         return generateTokenPair(userId, username, roles, deviceId, ip, userAgent);
     }
 
@@ -101,13 +90,26 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public boolean validateRefreshToken(String refreshToken) {
-        String refreshKey = REFRESH_TOKEN_PREFIX + refreshToken;
-        return redisTemplate.hasKey(refreshKey);
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return false;
+        }
+        return Boolean.TRUE.equals(redisTemplate.hasKey(buildRefreshKey(refreshToken)));
     }
 
     @Override
     public void revokeRefreshToken(String refreshToken) {
-        String refreshKey = REFRESH_TOKEN_PREFIX + refreshToken;
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return;
+        }
+        String refreshTokenHash = hashRefreshToken(refreshToken);
+        String refreshKey = buildRefreshKeyByHash(refreshTokenHash);
+        Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(refreshKey);
+        if (!tokenInfo.isEmpty()) {
+            Object userId = tokenInfo.get("userId");
+            if (userId != null) {
+                redisTemplate.opsForSet().remove(USER_TOKENS_PREFIX + userId, refreshTokenHash);
+            }
+        }
         redisTemplate.delete(refreshKey);
     }
 
@@ -117,11 +119,11 @@ public class TokenServiceImpl implements TokenService {
         Set<String> tokens = redisTemplate.opsForSet().members(userTokensKey);
         if (tokens != null) {
             for (String token : tokens) {
-                String refreshKey = REFRESH_TOKEN_PREFIX + token;
-                redisTemplate.delete(refreshKey);
+                redisTemplate.delete(buildRefreshKeyByHash(token));
             }
         }
         redisTemplate.delete(userTokensKey);
+        jwtUtil.increaseTokenVersion(userId);
     }
 
     @Override
@@ -132,8 +134,7 @@ public class TokenServiceImpl implements TokenService {
         List<Map<String, Object>> devices = new ArrayList<>();
         if (tokens != null) {
             for (String token : tokens) {
-                String refreshKey = REFRESH_TOKEN_PREFIX + token;
-                Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(refreshKey);
+                Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(buildRefreshKeyByHash(token));
                 if (!tokenInfo.isEmpty()) {
                     Map<String, Object> device = new HashMap<>();
                     device.put("id", tokenInfo.get("deviceId"));
@@ -153,10 +154,10 @@ public class TokenServiceImpl implements TokenService {
         Set<String> tokens = redisTemplate.opsForSet().members(userTokensKey);
         if (tokens != null) {
             for (String token : tokens) {
-                String refreshKey = REFRESH_TOKEN_PREFIX + token;
+                String refreshKey = buildRefreshKeyByHash(token);
                 Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(refreshKey);
                 if (deviceId.equals(tokenInfo.get("deviceId"))) {
-                    revokeRefreshToken(token);
+                    redisTemplate.delete(refreshKey);
                     redisTemplate.opsForSet().remove(userTokensKey, token);
                     break;
                 }
@@ -166,8 +167,10 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public Long getUserIdFromRefreshToken(String refreshToken) {
-        String refreshKey = REFRESH_TOKEN_PREFIX + refreshToken;
-        Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(refreshKey);
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return null;
+        }
+        Map<Object, Object> tokenInfo = redisTemplate.opsForHash().entries(buildRefreshKey(refreshToken));
         if (tokenInfo.isEmpty()) {
             return null;
         }
@@ -182,5 +185,31 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public List<String> getRolesFromAccessToken(String accessToken) {
         return jwtUtil.getRolesFromToken(accessToken);
+    }
+
+    private void validateDeviceBinding(Map<Object, Object> tokenInfo, String userAgent) {
+        Object storedUserAgent = tokenInfo.get("userAgent");
+        String userAgentValue = userAgent == null ? "" : userAgent;
+        if (!Objects.equals(storedUserAgent, userAgentValue)) {
+            throw new RuntimeException("Refresh Token设备校验失败");
+        }
+    }
+
+    private String buildRefreshKey(String refreshToken) {
+        return buildRefreshKeyByHash(hashRefreshToken(refreshToken));
+    }
+
+    private String buildRefreshKeyByHash(String refreshTokenHash) {
+        return REFRESH_TOKEN_PREFIX + refreshTokenHash;
+    }
+
+    private String hashRefreshToken(String refreshToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(refreshToken.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256算法不可用", e);
+        }
     }
 }

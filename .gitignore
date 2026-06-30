@@ -38,8 +38,8 @@ CLAUDE.md
 /.mcp.json
 
 ### 本地配置文件 ###
-application-prod.yaml
+application-local.yaml
 /.claude/
 /.codex/
 /logs/
-/src/main/resources/
+/AGENTS.md

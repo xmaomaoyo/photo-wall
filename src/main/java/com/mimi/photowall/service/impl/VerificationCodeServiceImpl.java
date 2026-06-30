@@ -12,56 +12,38 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 验证码服务实现类
- * 实现验证码的生成、发送、验证等操作
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class VerificationCodeServiceImpl implements VerificationCodeService {
 
+    private static final String VERIFY_CODE_PREFIX = "verify:";
+    private static final String RATE_LIMIT_PREFIX = "rate:";
+    private static final String DAILY_LIMIT_PREFIX = "daily:";
+    private static final String CAPTCHA_PREFIX = "captcha:";
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final int DEFAULT_CODE_LENGTH = 6;
+    private static final int RATE_LIMIT_SECONDS = 60;
+    private static final int DAILY_LIMIT_HOURS = 24;
+
     private final StringRedisTemplate redisTemplate;
     private final AliyunSmsConfig aliyunSmsConfig;
     private final AliyunSmsService aliyunSmsService;
     private final MailService mailService;
-
-    /**
-     * 验证码图片缓存（captchaId -> SpecCaptcha对象）
-     */
     private final Map<String, SpecCaptcha> captchaCache = new java.util.concurrent.ConcurrentHashMap<>();
-
-    /**
-     * 验证码存储Key前缀
-     */
-    private static final String VERIFY_CODE_PREFIX = "verify:";
-
-    /**
-     * 频率限制Key前缀
-     */
-    private static final String RATE_LIMIT_PREFIX = "rate:";
-
-    /**
-     * 每日发送限制Key前缀
-     */
-    private static final String DAILY_LIMIT_PREFIX = "daily:";
-
-    /**
-     * 图形验证码Key前缀
-     */
-    private static final String CAPTCHA_PREFIX = "captcha:";
 
     @Override
     public String generateCode(int length) {
         StringBuilder code = new StringBuilder();
         for (int i = 0; i < length; i++) {
-            code.append((int) (Math.random() * 10));
+            code.append(SECURE_RANDOM.nextInt(10));
         }
         return code.toString();
     }
@@ -73,49 +55,32 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public String sendSmsCode(String phoneNumber, CodeType codeType) {
-        // 检查频率限制
         if (!checkRateLimit("sms", phoneNumber)) {
             throw new RuntimeException("发送过于频繁，请60秒后再试");
         }
-
-        // 检查每日发送限制
-        if (!checkDailyLimit(phoneNumber)) {
+        if (!checkDailyLimit("sms", phoneNumber)) {
             throw new RuntimeException("今日发送次数已达上限");
         }
 
-        // 生成验证码
-        String code = generateCode(6);
-
-        // 存储到Redis
+        String code = generateCode(DEFAULT_CODE_LENGTH);
         String verifyKey = VERIFY_CODE_PREFIX + codeType.getCode() + ":sms:" + phoneNumber;
-        Map<String, String> codeInfo = new HashMap<>();
-        codeInfo.put("code", code);
-        codeInfo.put("attempts", "0");
-        codeInfo.put("createdAt", String.valueOf(System.currentTimeMillis()));
-        redisTemplate.opsForHash().putAll(verifyKey, codeInfo);
-        redisTemplate.expire(verifyKey, aliyunSmsConfig.getExpire(), TimeUnit.SECONDS);
+        saveCode(verifyKey, code);
 
-        // 设置频率限制（60秒）
         String rateKey = RATE_LIMIT_PREFIX + "sms:" + phoneNumber;
-        redisTemplate.opsForValue().set(rateKey, "1", 60, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(rateKey, "1", RATE_LIMIT_SECONDS, TimeUnit.SECONDS);
 
-        // 增加每日发送计数
-        String dailyKey = DAILY_LIMIT_PREFIX + "sms:" + phoneNumber;
-        redisTemplate.opsForValue().increment(dailyKey);
-        redisTemplate.expire(dailyKey, 24, TimeUnit.HOURS);
+        String dailyKey = buildDailyKey("sms", phoneNumber);
+        increaseDailyCount(dailyKey);
 
-        // 调用阿里云SDK发送短信
         boolean sendResult = aliyunSmsService.sendSmsCode(phoneNumber, code);
         if (!sendResult) {
-            // 发送失败，删除已存储的验证码
             redisTemplate.delete(verifyKey);
             redisTemplate.delete(rateKey);
             redisTemplate.delete(dailyKey);
             throw new RuntimeException("短信发送失败，请稍后再试");
         }
 
-        log.info("短信验证码已发送: phoneNumber={}, type={}", desensitizePhone(phoneNumber), codeType.getCode());
-
+        log.info("短信验证码已发送 phoneNumber={}, type={}", desensitizePhone(phoneNumber), codeType.getCode());
         return code;
     }
 
@@ -126,67 +91,57 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
 
     @Override
     public String sendEmailCode(String email, CodeType codeType) {
-        // 检查频率限制
         if (!checkRateLimit("email", email)) {
             throw new RuntimeException("发送过于频繁，请60秒后再试");
         }
+        if (!checkDailyLimit("email", email)) {
+            throw new RuntimeException("今日发送次数已达上限");
+        }
 
-        // 生成验证码
-        String code = generateCode(6);
-
-        // 存储到Redis
+        String code = generateCode(DEFAULT_CODE_LENGTH);
         String verifyKey = VERIFY_CODE_PREFIX + codeType.getCode() + ":email:" + email;
-        Map<String, String> codeInfo = new HashMap<>();
-        codeInfo.put("code", code);
-        codeInfo.put("attempts", "0");
-        codeInfo.put("createdAt", String.valueOf(System.currentTimeMillis()));
-        redisTemplate.opsForHash().putAll(verifyKey, codeInfo);
-        redisTemplate.expire(verifyKey, aliyunSmsConfig.getExpire(), TimeUnit.SECONDS);
+        saveCode(verifyKey, code);
 
-        // 设置频率限制（60秒）
         String rateKey = RATE_LIMIT_PREFIX + "email:" + email;
-        redisTemplate.opsForValue().set(rateKey, "1", 60, TimeUnit.SECONDS);
+        redisTemplate.opsForValue().set(rateKey, "1", RATE_LIMIT_SECONDS, TimeUnit.SECONDS);
 
-        // 调用邮件服务发送验证码
+        String dailyKey = buildDailyKey("email", email);
+        increaseDailyCount(dailyKey);
+
         boolean sendResult = mailService.sendVerificationCode(email, code);
         if (!sendResult) {
-            // 发送失败，删除已存储的验证码
             redisTemplate.delete(verifyKey);
             redisTemplate.delete(rateKey);
+            redisTemplate.delete(dailyKey);
             throw new RuntimeException("邮件发送失败，请稍后再试");
         }
 
-        log.info("邮箱验证码已发送: email={}, type={}", desensitizeEmail(email), codeType.getCode());
-
+        log.info("邮箱验证码已发送 email={}, type={}", desensitizeEmail(email), codeType.getCode());
         return code;
     }
 
     @Override
     public boolean verifyCode(CodeType type, String target, String code) {
-        String verifyKey = VERIFY_CODE_PREFIX + type.getCode() + ":" +
-                (target.contains("@") ? "email:" : "sms:") + target;
+        String verifyKey = VERIFY_CODE_PREFIX + type.getCode() + ":"
+                + (target.contains("@") ? "email:" : "sms:") + target;
 
         Map<Object, Object> codeInfo = redisTemplate.opsForHash().entries(verifyKey);
         if (codeInfo.isEmpty()) {
             return false;
         }
 
-        // 检查尝试次数
         int attempts = Integer.parseInt(codeInfo.get("attempts").toString());
         if (attempts >= aliyunSmsConfig.getMaxAttempts()) {
             redisTemplate.delete(verifyKey);
             return false;
         }
 
-        // 验证码比对
         String storedCode = codeInfo.get("code").toString();
         if (!storedCode.equals(code)) {
-            // 增加尝试次数
             redisTemplate.opsForHash().increment(verifyKey, "attempts", 1);
             return false;
         }
 
-        // 验证成功，删除验证码
         redisTemplate.delete(verifyKey);
         return true;
     }
@@ -194,36 +149,23 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
     @Override
     public boolean checkRateLimit(String type, String target) {
         String rateKey = RATE_LIMIT_PREFIX + type + ":" + target;
-        return !redisTemplate.hasKey(rateKey);
+        return !Boolean.TRUE.equals(redisTemplate.hasKey(rateKey));
     }
 
     @Override
     public boolean checkDailyLimit(String phoneNumber) {
-        String dailyKey = DAILY_LIMIT_PREFIX + "sms:" + phoneNumber;
-        String count = redisTemplate.opsForValue().get(dailyKey);
-        if (count == null) {
-            return true;
-        }
-        return Integer.parseInt(count) < aliyunSmsConfig.getDailyLimit();
+        return checkDailyLimit("sms", phoneNumber);
     }
 
     @Override
     public String generateCaptcha() {
-        // 使用EasyCaptcha生成验证码
         SpecCaptcha captcha = new SpecCaptcha(130, 48, 4);
         String code = captcha.text().toLowerCase();
-
-        // 生成唯一ID
         String captchaId = UUID.randomUUID().toString();
 
-        // 存储验证码文本到Redis
         String captchaKey = CAPTCHA_PREFIX + captchaId;
         redisTemplate.opsForValue().set(captchaKey, code, 5, TimeUnit.MINUTES);
-
-        // 缓存验证码图片对象
         captchaCache.put(captchaId, captcha);
-
-        // 5分钟后自动清理缓存
         CompletableFuture.delayedExecutor(5, TimeUnit.MINUTES).execute(() -> captchaCache.remove(captchaId));
 
         return captchaId;
@@ -258,23 +200,40 @@ public class VerificationCodeServiceImpl implements VerificationCodeService {
             return false;
         }
 
-        // 验证成功后删除验证码
         redisTemplate.delete(captchaKey);
-
-        // 大小写不敏感比较
         return storedCode.equalsIgnoreCase(captchaCode);
     }
 
-    /**
-     * 手机号脱敏
-     */
+    private void saveCode(String verifyKey, String code) {
+        Map<String, String> codeInfo = new HashMap<>();
+        codeInfo.put("code", code);
+        codeInfo.put("attempts", "0");
+        codeInfo.put("createdAt", String.valueOf(System.currentTimeMillis()));
+        redisTemplate.opsForHash().putAll(verifyKey, codeInfo);
+        redisTemplate.expire(verifyKey, aliyunSmsConfig.getExpire(), TimeUnit.SECONDS);
+    }
+
+    private boolean checkDailyLimit(String type, String target) {
+        String count = redisTemplate.opsForValue().get(buildDailyKey(type, target));
+        if (count == null) {
+            return true;
+        }
+        return Integer.parseInt(count) < aliyunSmsConfig.getDailyLimit();
+    }
+
+    private void increaseDailyCount(String dailyKey) {
+        redisTemplate.opsForValue().increment(dailyKey);
+        redisTemplate.expire(dailyKey, DAILY_LIMIT_HOURS, TimeUnit.HOURS);
+    }
+
+    private String buildDailyKey(String type, String target) {
+        return DAILY_LIMIT_PREFIX + type + ":" + target;
+    }
+
     private String desensitizePhone(String phone) {
         return DesensitizeUtil.desensitizePhone(phone);
     }
 
-    /**
-     * 邮箱脱敏
-     */
     private String desensitizeEmail(String email) {
         return DesensitizeUtil.desensitizeEmail(email);
     }

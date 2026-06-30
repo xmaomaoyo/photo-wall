@@ -61,9 +61,9 @@
             </activation>
         </profile>
         <profile>
-            <id>prod</id>
+            <id>local</id>
             <properties>
-                <spring.profiles.active>prod</spring.profiles.active>
+                <spring.profiles.active>local</spring.profiles.active>
             </properties>
         </profile>
         <profile>

@@ -166,8 +166,9 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "刷新Token", description = "使用Refresh Token获取新的Token对")
     public Result<LoginVO> refreshToken(
-            @CookieValue(value = "refreshToken", required = false) String refreshToken) {
-        LoginVO result = authService.refreshToken(refreshToken);
+            @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            HttpServletRequest httpRequest) {
+        LoginVO result = authService.refreshToken(refreshToken, httpRequest);
         return Result.ok(result);
     }
 

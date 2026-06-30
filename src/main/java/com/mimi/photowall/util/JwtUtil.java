@@ -4,8 +4,9 @@ import com.mimi.photowall.config.JwtConfig;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -21,10 +22,12 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtUtil {
 
-    @Autowired
-    private JwtConfig jwtConfig;
+    private final JwtConfig jwtConfig;
+    private final StringRedisTemplate redisTemplate;
+    private static final String TOKEN_VERSION_PREFIX = "auth:user:token-version:";
 
     /**
      * 生成Access Token
@@ -41,6 +44,7 @@ public class JwtUtil {
         claims.put("username", username);
         claims.put("roles", roles);
         claims.put("deviceId", deviceId);
+        claims.put("tokenVersion", getCurrentTokenVersion(userId));
 
         return Jwts.builder()
                 .claims(claims)
@@ -145,11 +149,53 @@ public class JwtUtil {
     public boolean validateToken(String token) {
         try {
             Claims claims = parseToken(token);
-            return claims != null && !isTokenExpired(token);
+            if (claims == null || claims.getExpiration().before(new Date())) {
+                return false;
+            }
+            Long userId = getUserIdFromClaims(claims);
+            Long tokenVersion = getLongClaim(claims, "tokenVersion");
+            return userId != null && tokenVersion != null && tokenVersion.equals(getCurrentTokenVersion(userId));
         } catch (Exception e) {
             log.error("Token验证失败: {}", e.getMessage());
             return false;
         }
+    }
+
+    public Long getCurrentTokenVersion(Long userId) {
+        String value = redisTemplate.opsForValue().get(TOKEN_VERSION_PREFIX + userId);
+        return value == null ? 0L : Long.parseLong(value);
+    }
+
+    public void increaseTokenVersion(Long userId) {
+        redisTemplate.opsForValue().increment(TOKEN_VERSION_PREFIX + userId);
+    }
+
+    private Long getUserIdFromClaims(Claims claims) {
+        Object userId = claims.get("userId");
+        if (userId instanceof Integer integerUserId) {
+            return integerUserId.longValue();
+        }
+        if (userId instanceof Long longUserId) {
+            return longUserId;
+        }
+        if (userId instanceof String stringUserId) {
+            return Long.parseLong(stringUserId);
+        }
+        return null;
+    }
+
+    private Long getLongClaim(Claims claims, String name) {
+        Object value = claims.get(name);
+        if (value instanceof Integer integerValue) {
+            return integerValue.longValue();
+        }
+        if (value instanceof Long longValue) {
+            return longValue;
+        }
+        if (value instanceof String stringValue) {
+            return Long.parseLong(stringValue);
+        }
+        return null;
     }
 
     /**

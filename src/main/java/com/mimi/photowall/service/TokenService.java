@@ -29,7 +29,7 @@ public interface TokenService {
      * @param refreshToken Refresh Token
      * @return 新的Token对 [accessToken, refreshToken]
      */
-    String[] refreshTokenPair(String refreshToken);
+    String[] refreshTokenPair(String refreshToken, String ip, String userAgent);
 
     /**
      * 验证Access Token

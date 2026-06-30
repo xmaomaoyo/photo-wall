@@ -41,7 +41,7 @@ public class MailService {
             message.setText(buildEmailContent(code));
 
             mailSender.send(message);
-            log.info("验证码邮件发送成功: toEmail={}, code={}", desensitizeEmail(toEmail), code);
+            log.info("验证码邮件发送成功: toEmail={}", desensitizeEmail(toEmail));
             return true;
         } catch (Exception e) {
             log.error("验证码邮件发送失败: toEmail={}, error={}", desensitizeEmail(toEmail), e.getMessage(), e);

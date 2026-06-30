@@ -72,7 +72,7 @@ public interface AuthService {
      * @param refreshToken Refresh Token
      * @return 新的Token信息
      */
-    LoginVO refreshToken(String refreshToken);
+    LoginVO refreshToken(String refreshToken, HttpServletRequest httpRequest);
 
     /**
      * 登出

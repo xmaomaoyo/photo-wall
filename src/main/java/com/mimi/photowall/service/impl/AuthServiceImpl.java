@@ -184,9 +184,11 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public LoginVO refreshToken(String refreshToken) {
+    public LoginVO refreshToken(String refreshToken, HttpServletRequest httpRequest) {
+        String ip = getClientIp(httpRequest);
+        String userAgent = getUserAgent(httpRequest);
         // 刷新Token
-        String[] tokens = tokenService.refreshTokenPair(refreshToken);
+        String[] tokens = tokenService.refreshTokenPair(refreshToken, ip, userAgent);
 
         // 获取用户信息
         Long userId = tokenService.getUserIdFromAccessToken(tokens[0]);
