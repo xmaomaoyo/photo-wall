@@ -93,7 +93,7 @@ public class TokenServiceImpl implements TokenService {
         if (refreshToken == null || refreshToken.isBlank()) {
             return false;
         }
-        return Boolean.TRUE.equals(redisTemplate.hasKey(buildRefreshKey(refreshToken)));
+        return redisTemplate.hasKey(buildRefreshKey(refreshToken));
     }
 
     @Override
