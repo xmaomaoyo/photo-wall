@@ -3,6 +3,10 @@ spring:
     name: photo-wall
   profiles:
     active: @spring.profiles.active@  # Maven构建时替换
+  servlet:
+    multipart:
+      max-file-size: ${PHOTO_MAX_FILE_SIZE:30MB}
+      max-request-size: ${PHOTO_MAX_REQUEST_SIZE:600MB}
 
 # Knife4j 配置
 knife4j:
@@ -37,3 +41,15 @@ password:
     include-lowercase: true  # 包含小写字母
     include-digits: true  # 包含数字
     include-symbols: true  # 包含特殊符号
+
+photo:
+  upload:
+    base-path: ${PHOTO_UPLOAD_BASE_PATH:/home/photo-wall/uploads}
+    url-prefix: ${PHOTO_UPLOAD_URL_PREFIX:/uploads}
+    max-batch-count: ${PHOTO_UPLOAD_MAX_BATCH_COUNT:20}
+    thumbnail-max-side: ${PHOTO_THUMBNAIL_MAX_SIDE:480}
+    allowed-content-types:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - image/gif

@@ -84,6 +84,36 @@ CREATE TABLE `login_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='登录日志表';
 
 -- =============================================
+-- 照片表
+-- =============================================
+DROP TABLE IF EXISTS `photo`;
+CREATE TABLE `photo` (
+    `id` bigint NOT NULL AUTO_INCREMENT COMMENT '照片ID',
+    `user_id` bigint NOT NULL COMMENT '用户ID',
+    `original_filename` varchar(255) NOT NULL COMMENT '原始文件名',
+    `stored_filename` varchar(128) NOT NULL COMMENT '存储文件名',
+    `storage_path` varchar(512) NOT NULL COMMENT '原图存储路径',
+    `url` varchar(512) NOT NULL COMMENT '原图访问URL',
+    `thumbnail_path` varchar(512) NOT NULL COMMENT '缩略图存储路径',
+    `thumbnail_url` varchar(512) NOT NULL COMMENT '缩略图访问URL',
+    `content_type` varchar(64) NOT NULL COMMENT '内容类型',
+    `file_size` bigint NOT NULL COMMENT '文件大小，单位字节',
+    `width` int DEFAULT NULL COMMENT '图片宽度',
+    `height` int DEFAULT NULL COMMENT '图片高度',
+    `taken_time` datetime NOT NULL COMMENT '图片时间，优先取EXIF，失败时使用上传时间',
+    `upload_time` datetime NOT NULL COMMENT '上传时间',
+    `status` tinyint NOT NULL DEFAULT 1 COMMENT '状态：0-禁用，1-正常',
+    `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-未删除，1-已删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_upload_time` (`upload_time`),
+    KEY `idx_taken_time` (`taken_time`),
+    KEY `idx_user_upload_time` (`user_id`, `upload_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='照片表';
+
+-- =============================================
 -- 初始数据
 -- =============================================
 

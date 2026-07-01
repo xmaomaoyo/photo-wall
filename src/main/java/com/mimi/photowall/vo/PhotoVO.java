@@ -56,6 +56,48 @@ public class PhotoVO {
     private String thumbnailUrl;
 
     /**
+     * 原始文件名
+     */
+    @Schema(description = "原始文件名", example = "photo.jpg")
+    private String originalFilename;
+
+    /**
+     * 内容类型
+     */
+    @Schema(description = "内容类型", example = "image/jpeg")
+    private String contentType;
+
+    /**
+     * 文件大小，单位字节
+     */
+    @Schema(description = "文件大小，单位字节", example = "102400")
+    private Long fileSize;
+
+    /**
+     * 图片宽度
+     */
+    @Schema(description = "图片宽度", example = "1920")
+    private Integer width;
+
+    /**
+     * 图片高度
+     */
+    @Schema(description = "图片高度", example = "1080")
+    private Integer height;
+
+    /**
+     * 图片时间
+     */
+    @Schema(description = "图片时间")
+    private LocalDateTime takenTime;
+
+    /**
+     * 上传时间
+     */
+    @Schema(description = "上传时间")
+    private LocalDateTime uploadTime;
+
+    /**
      * 照片状态
      */
     @Schema(description = "照片状态", example = "1")

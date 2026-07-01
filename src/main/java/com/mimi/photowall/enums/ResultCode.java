@@ -99,7 +99,25 @@ public enum ResultCode {
     USER_NOT_FOUND(1017, "用户不存在"),
 
     /** 角色分配失败 */
-    ROLE_ASSIGN_FAILED(1018, "角色分配失败");
+    ROLE_ASSIGN_FAILED(1018, "角色分配失败"),
+
+    /** 文件不能为空 */
+    FILE_EMPTY(1019, "文件不能为空"),
+
+    /** 文件类型不支持 */
+    FILE_TYPE_NOT_SUPPORTED(1020, "文件类型不支持"),
+
+    /** 文件存储失败 */
+    FILE_STORAGE_FAILED(1021, "文件存储失败"),
+
+    /** 图片不存在 */
+    PHOTO_NOT_FOUND(1022, "图片不存在"),
+
+    /** 批量上传数量超限 */
+    FILE_BATCH_COUNT_EXCEEDED(1023, "批量上传数量超限"),
+
+    /** 文件大小超限 */
+    FILE_SIZE_EXCEEDED(1024, "文件大小超限");
 
     /** 状态码 */
     private final int code;

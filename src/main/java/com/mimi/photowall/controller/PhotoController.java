@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -22,6 +23,16 @@ import java.util.List;
 public class PhotoController {
 
     private final PhotoService photoService;
+
+    /**
+     * 上传照片
+     */
+    @PostMapping("/upload")
+    @Operation(summary = "上传照片", description = "批量上传当前用户的照片，单次最多20张")
+    public Result<List<PhotoVO>> uploadPhotos(@RequestPart("files") MultipartFile[] files) {
+        List<PhotoVO> photos = photoService.uploadPhotos(files);
+        return Result.ok(photos);
+    }
 
     /**
      * 获取当前用户的照片列表
@@ -45,6 +56,16 @@ public class PhotoController {
         // Service 层会校验数据归属
         PhotoVO photo = photoService.getPhoto(photoId);
         return Result.ok(photo);
+    }
+
+    /**
+     * 删除照片
+     */
+    @PostMapping("/{photoId}/delete")
+    @Operation(summary = "删除照片", description = "删除当前用户自己的照片")
+    public Result<Void> deletePhoto(@PathVariable Long photoId) {
+        photoService.deletePhoto(photoId);
+        return Result.ok();
     }
 
     /**

@@ -43,3 +43,6 @@ application-local.yaml
 /.codex/
 /logs/
 /AGENTS.md
+/deploy/
+/docs/
+/Dockerfile

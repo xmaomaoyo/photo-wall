@@ -189,6 +189,20 @@
             <version>1.6.2</version>
         </dependency>
 
+        <!-- 图片元信息解析 -->
+        <dependency>
+            <groupId>com.drewnoakes</groupId>
+            <artifactId>metadata-extractor</artifactId>
+            <version>2.19.0</version>
+        </dependency>
+
+        <!-- 缩略图生成 -->
+        <dependency>
+            <groupId>net.coobird</groupId>
+            <artifactId>thumbnailator</artifactId>
+            <version>0.4.20</version>
+        </dependency>
+
         <!-- 密码加密 -->
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -225,6 +239,8 @@
 
     <!-- 构建配置 -->
     <build>
+        <finalName>photo-wall</finalName>
+
         <!-- 资源过滤：启用 @...@ 占位符替换 -->
         <resources>
             <resource>

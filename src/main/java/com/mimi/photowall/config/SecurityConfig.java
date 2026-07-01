@@ -47,6 +47,7 @@ public class SecurityConfig {
             "/favicon.ico",
             "/static/**",
             "/assets/**",
+            "/uploads/**",
 
             // API 文档
             "/doc.html",
