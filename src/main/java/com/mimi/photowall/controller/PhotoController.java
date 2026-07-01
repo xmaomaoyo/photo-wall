@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -61,9 +63,10 @@ public class PhotoController {
     @Operation(summary = "按时间查看照片", description = "按taken_time日期分组分页获取当前用户照片")
     public Result<PageVO<PhotoDateGroupVO>> listPhotosByTakenDate(
             @RequestParam(required = false) Long pageNum,
-            @RequestParam(required = false) Long pageSize
+            @RequestParam(required = false) Long pageSize,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate takenDate
     ) {
-        PageVO<PhotoDateGroupVO> photos = photoService.getUserPhotosByTakenDate(pageNum, pageSize);
+        PageVO<PhotoDateGroupVO> photos = photoService.getUserPhotosByTakenDate(pageNum, pageSize, takenDate);
         return Result.ok(photos);
     }
 

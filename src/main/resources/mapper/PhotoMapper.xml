@@ -9,6 +9,9 @@
         WHERE user_id = #{userId}
           AND status = #{status}
           AND deleted = 0
+        <if test="takenDate != null">
+          AND DATE(taken_time) = #{takenDate}
+        </if>
         GROUP BY DATE(taken_time)
         ORDER BY DATE(taken_time) DESC
         LIMIT #{offset}, #{pageSize}
@@ -22,6 +25,9 @@
             WHERE user_id = #{userId}
               AND status = #{status}
               AND deleted = 0
+            <if test="takenDate != null">
+              AND DATE(taken_time) = #{takenDate}
+            </if>
             GROUP BY DATE(taken_time)
         ) taken_date_group
     </select>

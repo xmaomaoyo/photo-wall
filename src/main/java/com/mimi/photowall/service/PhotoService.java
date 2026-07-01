@@ -116,15 +116,16 @@ public class PhotoService extends BaseService {
      * @param pageSize 每页日期分组数
      * @return 日期分组照片分页
      */
-    public PageVO<PhotoDateGroupVO> getUserPhotosByTakenDate(Long pageNum, Long pageSize) {
+    public PageVO<PhotoDateGroupVO> getUserPhotosByTakenDate(Long pageNum, Long pageSize, LocalDate takenDate) {
         Long currentPageNum = normalizePageNum(pageNum);
         Long currentPageSize = normalizePageSize(pageSize);
         Long userId = getCurrentUserId();
-        Long total = photoMapper.countTakenDateGroups(userId, NORMAL_STATUS);
+        Long total = photoMapper.countTakenDateGroups(userId, NORMAL_STATUS, takenDate);
         Long offset = (currentPageNum - 1) * currentPageSize;
         List<LocalDate> takenDates = photoMapper.selectTakenDatePage(
                 userId,
                 NORMAL_STATUS,
+                takenDate,
                 offset,
                 currentPageSize
         );
@@ -140,9 +141,9 @@ public class PhotoService extends BaseService {
                         Collectors.mapping(this::toVO, Collectors.toList())
                 ));
         List<PhotoDateGroupVO> records = takenDates.stream()
-                .map(takenDate -> PhotoDateGroupVO.builder()
-                        .takenDate(takenDate)
-                        .photos(photoMap.getOrDefault(takenDate, List.of()))
+                .map(groupDate -> PhotoDateGroupVO.builder()
+                        .takenDate(groupDate)
+                        .photos(photoMap.getOrDefault(groupDate, List.of()))
                         .build())
                 .toList();
         return toPageVO(records, total, currentPageNum, currentPageSize, calculatePages(total, currentPageSize));

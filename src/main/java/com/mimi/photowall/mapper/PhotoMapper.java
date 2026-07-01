@@ -17,13 +17,15 @@ public interface PhotoMapper extends BaseMapper<Photo> {
     List<LocalDate> selectTakenDatePage(
             @Param("userId") Long userId,
             @Param("status") Integer status,
+            @Param("takenDate") LocalDate takenDate,
             @Param("offset") Long offset,
             @Param("pageSize") Long pageSize
     );
 
     Long countTakenDateGroups(
             @Param("userId") Long userId,
-            @Param("status") Integer status
+            @Param("status") Integer status,
+            @Param("takenDate") LocalDate takenDate
     );
 
     List<Photo> selectByTakenDates(

@@ -141,11 +141,11 @@ class PhotoServiceTests {
     void getUserPhotosByTakenDateShouldGroupPagedPhotos() {
         LocalDate takenDate = LocalDate.of(2026, 7, 1);
         Photo photo = createSavedPhoto(1L, takenDate.atTime(10, 30));
-        when(photoMapper.countTakenDateGroups(CURRENT_USER_ID, 1)).thenReturn(1L);
-        when(photoMapper.selectTakenDatePage(CURRENT_USER_ID, 1, 0L, 20L)).thenReturn(List.of(takenDate));
+        when(photoMapper.countTakenDateGroups(CURRENT_USER_ID, 1, null)).thenReturn(1L);
+        when(photoMapper.selectTakenDatePage(CURRENT_USER_ID, 1, null, 0L, 20L)).thenReturn(List.of(takenDate));
         when(photoMapper.selectByTakenDates(eq(CURRENT_USER_ID), eq(1), anyList())).thenReturn(List.of(photo));
 
-        PageVO<PhotoDateGroupVO> page = photoService.getUserPhotosByTakenDate(1L, 20L);
+        PageVO<PhotoDateGroupVO> page = photoService.getUserPhotosByTakenDate(1L, 20L, null);
 
         assertThat(page.getRecords()).hasSize(1);
         assertThat(page.getRecords().get(0).getTakenDate()).isEqualTo(takenDate);
