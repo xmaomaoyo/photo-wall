@@ -1,6 +1,7 @@
 package com.mimi.photowall.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.drew.imaging.ImageMetadataReader;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
@@ -11,6 +12,8 @@ import com.mimi.photowall.entity.Photo;
 import com.mimi.photowall.enums.ResultCode;
 import com.mimi.photowall.exception.BusinessException;
 import com.mimi.photowall.mapper.PhotoMapper;
+import com.mimi.photowall.vo.PageVO;
+import com.mimi.photowall.vo.PhotoDateGroupVO;
 import com.mimi.photowall.vo.PhotoVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,10 +34,13 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 照片服务
@@ -45,6 +51,12 @@ import java.util.UUID;
 public class PhotoService extends BaseService {
 
     private static final int NORMAL_STATUS = 1;
+
+    private static final long DEFAULT_PAGE_SIZE = 56L;
+
+    private static final long MAX_PAGE_SIZE = 100L;
+
+    private static final long FIRST_PAGE_NUM = 1L;
 
     private static final DateTimeFormatter DATE_PATH_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
 
@@ -82,14 +94,58 @@ public class PhotoService extends BaseService {
     /**
      * 获取当前用户的照片列表
      */
-    public List<PhotoVO> getUserPhotos() {
+    public PageVO<PhotoVO> getUserPhotos(Long pageNum, Long pageSize) {
         Long userId = getCurrentUserId();
         LambdaQueryWrapper<Photo> wrapper = new LambdaQueryWrapper<Photo>()
                 .eq(Photo::getUserId, userId)
                 .eq(Photo::getStatus, NORMAL_STATUS)
                 .orderByDesc(Photo::getTakenTime)
                 .orderByDesc(Photo::getUploadTime);
-        return photoMapper.selectList(wrapper).stream().map(this::toVO).toList();
+        Page<Photo> page = photoMapper.selectPage(
+                new Page<>(normalizePageNum(pageNum), normalizePageSize(pageSize)),
+                wrapper
+        );
+        List<PhotoVO> records = page.getRecords().stream().map(this::toVO).toList();
+        return toPageVO(records, page.getTotal(), page.getCurrent(), page.getSize(), page.getPages());
+    }
+
+    /**
+     * 按拍摄日期分页获取当前用户照片
+     *
+     * @param pageNum 页码
+     * @param pageSize 每页日期分组数
+     * @return 日期分组照片分页
+     */
+    public PageVO<PhotoDateGroupVO> getUserPhotosByTakenDate(Long pageNum, Long pageSize) {
+        Long currentPageNum = normalizePageNum(pageNum);
+        Long currentPageSize = normalizePageSize(pageSize);
+        Long userId = getCurrentUserId();
+        Long total = photoMapper.countTakenDateGroups(userId, NORMAL_STATUS);
+        Long offset = (currentPageNum - 1) * currentPageSize;
+        List<LocalDate> takenDates = photoMapper.selectTakenDatePage(
+                userId,
+                NORMAL_STATUS,
+                offset,
+                currentPageSize
+        );
+        if (takenDates.isEmpty()) {
+            return toPageVO(List.of(), total, currentPageNum, currentPageSize, calculatePages(total, currentPageSize));
+        }
+
+        List<Photo> photos = photoMapper.selectByTakenDates(userId, NORMAL_STATUS, takenDates);
+        Map<LocalDate, List<PhotoVO>> photoMap = photos.stream()
+                .collect(Collectors.groupingBy(
+                        photo -> photo.getTakenTime().toLocalDate(),
+                        LinkedHashMap::new,
+                        Collectors.mapping(this::toVO, Collectors.toList())
+                ));
+        List<PhotoDateGroupVO> records = takenDates.stream()
+                .map(takenDate -> PhotoDateGroupVO.builder()
+                        .takenDate(takenDate)
+                        .photos(photoMap.getOrDefault(takenDate, List.of()))
+                        .build())
+                .toList();
+        return toPageVO(records, total, currentPageNum, currentPageSize, calculatePages(total, currentPageSize));
     }
 
     /**
@@ -337,6 +393,38 @@ public class PhotoService extends BaseService {
             return normalized.substring(slashIndex + 1);
         }
         return normalized;
+    }
+
+    private Long normalizePageNum(Long pageNum) {
+        if (pageNum == null || pageNum < FIRST_PAGE_NUM) {
+            return FIRST_PAGE_NUM;
+        }
+        return pageNum;
+    }
+
+    private Long normalizePageSize(Long pageSize) {
+        if (pageSize == null || pageSize < 1) {
+            return DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, MAX_PAGE_SIZE);
+    }
+
+    private Long calculatePages(Long total, Long pageSize) {
+        if (total == null || total == 0 || pageSize == null || pageSize == 0) {
+            return 0L;
+        }
+        return (total + pageSize - 1) / pageSize;
+    }
+
+    private <T> PageVO<T> toPageVO(List<T> records, Long total, Long pageNum, Long pageSize, Long pages) {
+        return PageVO.<T>builder()
+                .records(records)
+                .total(total)
+                .pageNum(pageNum)
+                .pageSize(pageSize)
+                .pages(pages)
+                .hasNext(pageNum < pages)
+                .build();
     }
 
     private PhotoVO toVO(Photo photo) {

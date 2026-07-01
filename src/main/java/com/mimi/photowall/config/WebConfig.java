@@ -2,9 +2,12 @@ package com.mimi.photowall.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.CacheControl;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.time.Duration;
 
 /**
  * Web配置类
@@ -37,7 +40,9 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         String urlPattern = normalizeUrlPrefix(photoUploadProperties.getUrlPrefix()) + "/**";
         String location = "file:" + normalizeBasePath(photoUploadProperties.getBasePath());
-        registry.addResourceHandler(urlPattern).addResourceLocations(location);
+        registry.addResourceHandler(urlPattern)
+                .addResourceLocations(location)
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(30)).cachePublic());
     }
 
     private String normalizeUrlPrefix(String urlPrefix) {
