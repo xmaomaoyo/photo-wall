@@ -49,6 +49,7 @@ public class SecurityConfig {
             "/static/**",
             "/assets/**",
             "/uploads/thumbnails/**",
+            "/uploads/avatars/**",
 
             // API 文档
             "/doc.html",
