@@ -8,6 +8,7 @@ import com.mimi.photowall.exception.BusinessException;
 import com.mimi.photowall.service.*;
 import com.mimi.photowall.util.DesensitizeUtil;
 import com.mimi.photowall.util.PasswordUtil;
+import com.mimi.photowall.util.SecurityUtils;
 import com.mimi.photowall.vo.auth.DeviceVO;
 import com.mimi.photowall.vo.auth.LoginVO;
 import com.mimi.photowall.vo.auth.TokenVO;
@@ -18,6 +19,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -187,16 +191,18 @@ public class AuthServiceImpl implements AuthService {
     public LoginVO refreshToken(String refreshToken, HttpServletRequest httpRequest) {
         String ip = getClientIp(httpRequest);
         String userAgent = getUserAgent(httpRequest);
-        // 刷新Token
-        String[] tokens = tokenService.refreshTokenPair(refreshToken, ip, userAgent);
-
-        // 获取用户信息
-        Long userId = tokenService.getUserIdFromAccessToken(tokens[0]);
+        Long userId = tokenService.getUserIdFromRefreshToken(refreshToken);
+        if (userId == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED);
+        }
         User user = userService.getUserById(userId);
         if (user == null) {
             throw new BusinessException(ResultCode.USER_NOT_FOUND);
         }
+        checkUserStatus(user);
 
+        // 用户状态正常后再轮换Token
+        String[] tokens = tokenService.refreshTokenPair(refreshToken, ip, userAgent);
         List<String> roles = roleService.getUserRoleCodes(userId);
 
         return LoginVO.builder()
@@ -251,14 +257,16 @@ public class AuthServiceImpl implements AuthService {
 
         List<java.util.Map<String, Object>> devices = tokenService.getUserDevices(userId);
         List<DeviceVO> result = new ArrayList<>();
+        String currentDeviceId = SecurityUtils.getCurrentDeviceId();
 
         for (java.util.Map<String, Object> device : devices) {
+            String deviceId = (String) device.get("id");
             result.add(DeviceVO.builder()
-                    .deviceId((String) device.get("id"))
+                    .deviceId(deviceId)
                     .deviceName((String) device.get("deviceName"))
                     .ip((String) device.get("ip"))
-                    .lastActiveTime(null)
-                    .current(false)
+                    .lastActiveTime(parseDeviceTime(device.get("lastActiveTime")))
+                    .current(currentDeviceId.equals(deviceId))
                     .build());
         }
 
@@ -450,6 +458,19 @@ public class AuthServiceImpl implements AuthService {
             return authorization.substring(7);
         }
         return null;
+    }
+
+    private LocalDateTime parseDeviceTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            long timestamp = Long.parseLong(value.toString());
+            return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp), ZoneId.systemDefault());
+        } catch (NumberFormatException exception) {
+            log.debug("设备活跃时间格式无效: value={}", value);
+            return null;
+        }
     }
 
     /**

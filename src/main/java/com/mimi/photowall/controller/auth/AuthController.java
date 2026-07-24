@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +30,8 @@ import java.util.List;
 @RequestMapping("/api/v1/auth")
 @Tag(name = "认证管理", description = "登录、注册、Token管理等接口")
 public class AuthController {
+
+    private static final String REFRESH_TOKEN_HEADER = "X-Refresh-Token";
 
     private final AuthService authService;
     private final VerificationCodeService verificationCodeService;
@@ -166,8 +169,12 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "刷新Token", description = "使用Refresh Token获取新的Token对")
     public Result<LoginVO> refreshToken(
-            @CookieValue(value = "refreshToken", required = false) String refreshToken,
+            @RequestHeader(value = REFRESH_TOKEN_HEADER, required = false) String headerRefreshToken,
+            @CookieValue(value = "refreshToken", required = false) String cookieRefreshToken,
             HttpServletRequest httpRequest) {
+        String refreshToken = StringUtils.hasText(headerRefreshToken)
+                ? headerRefreshToken
+                : cookieRefreshToken;
         LoginVO result = authService.refreshToken(refreshToken, httpRequest);
         return Result.ok(result);
     }

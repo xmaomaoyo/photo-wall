@@ -1,5 +1,7 @@
 package com.mimi.photowall.common;
 
+import com.mimi.photowall.entity.User;
+import com.mimi.photowall.service.UserService;
 import com.mimi.photowall.util.JwtUtil;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -27,12 +29,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    private static final int ACTIVE_STATUS = 1;
+
+    private static final String AUTHORIZATION_PREFIX = "Bearer ";
+
     private final JwtUtil jwtUtil;
 
-    /**
-     * Authorization 请求头前缀
-     */
-    private static final String AUTHORIZATION_PREFIX = "Bearer ";
+    private final UserService userService;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -47,6 +50,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
                 // 从 Token 解析用户信息
                 Long userId = jwtUtil.getUserIdFromToken(token);
+                User user = userService.getUserById(userId);
+                if (user == null || !Integer.valueOf(ACTIVE_STATUS).equals(user.getStatus())) {
+                    log.warn("JWT用户不存在或已停用: userId={}", userId);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 String username = jwtUtil.getUsernameFromToken(token);
                 List<String> roles = jwtUtil.getRolesFromToken(token);
                 String deviceId = jwtUtil.getDeviceIdFromToken(token);

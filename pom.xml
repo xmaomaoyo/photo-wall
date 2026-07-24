@@ -89,6 +89,12 @@
             </exclusions>
         </dependency>
 
+        <!-- 请求参数校验 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Log4j2 日志框架 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

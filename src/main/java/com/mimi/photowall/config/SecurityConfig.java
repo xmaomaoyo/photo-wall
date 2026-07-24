@@ -1,6 +1,7 @@
 package com.mimi.photowall.config;
 
 import com.mimi.photowall.common.JwtAuthFilter;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -77,6 +78,12 @@ public class SecurityConfig {
                         .requestMatchers(WHITE_LIST).permitAll()
                         // 其他接口需要认证
                         .anyRequest().authenticated()
+                )
+
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) ->
+                                response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+                        )
                 )
 
                 // 在 UsernamePasswordAuthenticationFilter 之前添加 JWT 过滤器
